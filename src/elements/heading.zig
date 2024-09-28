@@ -2,7 +2,7 @@ const std = @import("std");
 const utils = @import("../utils.zig");
 
 const Element = @import("../elements.zig").Element;
-const Self = @This();
+const Heading = @This();
 
 /// First character of a heading in Markdown
 pub const first_char = '#';
@@ -17,7 +17,7 @@ text: []const u8,
 pub fn parse(
     /// The full heading line to parse
     line: []const u8,
-) Self {
+) Heading {
     var level: u8 = 0;
     var iter = utils.SliceIterator(u8).init(line);
 
@@ -29,7 +29,7 @@ pub fn parse(
         }
     }
 
-    return Self{
+    return Heading{
         .level = level,
         .text = iter.rest(),
     };
