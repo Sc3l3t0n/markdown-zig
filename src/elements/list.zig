@@ -4,6 +4,10 @@ const utils = @import("../utils.zig");
 const Element = @import("../elements.zig").Element;
 const List = @This();
 
+pub const ListParseError = error{
+    InvalidListPrefix,
+} || std.mem.Allocator.Error;
+
 pub const ListItem = union(enum) {
     bullet: BulletListItem,
     numbered: NumberedListItem,
@@ -38,72 +42,102 @@ pub const NumberedListItem = struct {
     children: ?List = null, // TODO: Support nested lists
 };
 
-/// List items in the list.
+/// ArrayList of Listitems in the list.
+/// Use items() instead of directly accessing the items field.
 item_list: std.ArrayList(ListItem),
 
 /// Parses the list and returns it.
 pub fn parse(
     /// The allocator to use for the list
     allocator: std.mem.Allocator,
-    /// All lines of the list
-    lines: []const []const u8,
-) !List {
+    /// Line ot the list
+    line: []const u8,
+) ListParseError!List {
     var item_list = std.ArrayList(ListItem).init(allocator);
-    var iter = utils.SliceIterator([]const u8).init(lines);
 
-    while (iter.next()) |line| {
-        if (std.mem.startsWith(u8, line, "1. ")) {
-            try item_list.append(ListItem{
-                // TODO: Parse number
-                .numbered = NumberedListItem{
-                    .text = line[3..],
-                    .number = 1,
-                },
-            });
-        } else if (std.mem.startsWith(u8, line, "- ")) {
-            try item_list.append(ListItem{
-                .bullet = BulletListItem{
-                    .text = line[2..],
-                },
-            });
+    if (std.mem.startsWith(u8, line, "- ")) {
+        try item_list.append(ListItem{
+            .bullet = BulletListItem{
+                .text = line[2..],
+            },
+        });
+    } else {
+        var split = std.mem.splitScalar(u8, line, ' ');
+        var prefix = split.first();
+        if (!std.mem.endsWith(u8, prefix, ".")) {
+            return ListParseError.InvalidListPrefix;
         }
+
+        const number = std.fmt.parseInt(u64, prefix[0 .. prefix.len - 1], 10) catch {
+            return ListParseError.InvalidListPrefix;
+        };
+
+        try item_list.append(ListItem{
+            // TODO: Parse number
+            .numbered = NumberedListItem{
+                .text = line[prefix.len + 1 ..],
+                .number = number,
+            },
+        });
     }
 
     return List{
-        .items = items,
+        .item_list = item_list,
     };
 }
 
-pub fn parseElement(allocator: std.mem.Allocator, lines: []const []const u8) !Element {
-    return .{ .list = try List.parse(allocator, lines) };
+/// Parses the list and returns an element.
+pub fn parseElement(allocator: std.mem.Allocator, line: []const u8) !Element {
+    return .{ .list = try List.parse(allocator, line) };
 }
 
+/// Returns the list items.
 pub fn items(self: *List) []ListItem {
-    return self.items.items;
+    return self.item_list.items;
 }
 
 /// Deinitializes the list, freeing all resources.
 /// Freeing all created items and their children.
 pub fn deinit(self: *List) void {
-    for (self.items.items) |*item| {
+    for (self.item_list.items) |*item| {
         if (item.children().*) |*children| {
             children.deinit();
         }
     }
-    self.items.deinit();
+    self.item_list.deinit();
 }
 
 const testing = std.testing;
 
 test "parse" {
     const allocator = std.heap.page_allocator;
-    var list = try List.parse(allocator, &[_][]const u8{
+    var list = try List.parse(
+        allocator,
         "- Item 1",
-        "- Item 2",
-    });
+    );
     defer list.deinit();
 
-    try testing.expectEqual(2, list.items.items.len);
-    try testing.expectEqualSlices(u8, "Item 1", list.items.items[0].bullet.text);
-    try testing.expectEqualSlices(u8, "Item 2", list.items.items[1].bullet.text);
+    try testing.expectEqual(1, list.items().len);
+    try testing.expectEqualSlices(u8, "Item 1", list.items()[0].bullet.text);
+}
+
+test "parse numbered" {
+    const allocator = std.heap.page_allocator;
+    var list = try List.parse(
+        allocator,
+        "1. Item 1",
+    );
+    defer list.deinit();
+    try testing.expectEqual(1, list.items().len);
+    try testing.expectEqualSlices(u8, "Item 1", list.items()[0].numbered.text);
+    try testing.expectEqual(1, list.items()[0].numbered.number);
+}
+
+test "parse numbered error" {
+    const allocator = std.heap.page_allocator;
+    const err = List.parse(
+        allocator,
+        "aw. Item 1",
+    );
+    try testing.expectEqual(ListParseError.InvalidListPrefix, err);
 }
