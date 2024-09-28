@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("../utils.zig");
 
 const Element = @import("../elements.zig").Element;
 const Self = @This();
@@ -18,22 +19,19 @@ pub fn parse(
     line: []const u8,
 ) Self {
     var level: u8 = 0;
-    var start_index: ?usize = null;
+    var iter = utils.SliceIterator(u8).init(line);
 
-    for (line, 0..) |char, index| {
-        switch (char) {
-            '#' => level += 1,
-            ' ' => {},
-            else => {
-                start_index = index;
-                break;
-            },
+    while (iter.next()) |char| {
+        if (char == first_char) {
+            level += 1;
+        } else {
+            break;
         }
     }
 
     return Self{
         .level = level,
-        .text = line[start_index.?..],
+        .text = iter.rest(),
     };
 }
 
