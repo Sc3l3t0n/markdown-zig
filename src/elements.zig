@@ -1,3 +1,5 @@
+pub const Frontmatter = @import("elements/frontmatter.zig");
+
 /// Represents a Heading element in Markdown
 pub const Heading = @import("elements/heading.zig");
 
@@ -12,6 +14,7 @@ pub const HorizontalRule = struct {};
 
 /// Union of all element types in Markdown
 pub const Element = union(enum) {
+    frontmatter: Frontmatter,
     heading: Heading,
     list: List,
     paragraph: Paragraph,
@@ -22,6 +25,7 @@ pub const Element = union(enum) {
     /// Safe to call on all elements
     pub fn deinit(self: *Element) void {
         switch (self.*) {
+            .frontmatter => self.frontmatter.deinit(),
             .heading => {},
             .list => self.list.deinit(),
             .paragraph => {},
