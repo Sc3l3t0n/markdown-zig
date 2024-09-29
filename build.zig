@@ -15,11 +15,17 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    const markdown_zig = b.createModule(.{
+        .source_file = .{ .path = "lib/root.zig" },
+    });
+    // we name the module duck which will be used later
+    try b.modules.put(b.dupe("markdown_zig"), markdown_zig);
+
     const lib = b.addStaticLibrary(.{
         .name = "markdown-zig",
         // In this case the main source file is merely a path, however, in more
         // complicated build scripts, this could be a generated file.
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("lib/root.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -32,7 +38,7 @@ pub fn build(b: *std.Build) void {
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const lib_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("lib/root.zig"),
         .target = target,
         .optimize = optimize,
     });
