@@ -1,7 +1,9 @@
 const std = @import("std");
 const parser = @import("parser.zig");
+const addons = @import("addons.zig");
 
 const Element = @import("elements.zig").Element;
+const Frontmatter = addons.Frontmatter;
 const Self = @This();
 
 const max_append_size = 10_000;
@@ -9,6 +11,7 @@ const max_append_size = 10_000;
 allocator: std.mem.Allocator,
 content: std.ArrayList(u8),
 elements: std.ArrayList(Element),
+frontmatter: ?Frontmatter = null,
 
 /// Initializes the document.
 pub fn init(allocator: std.mem.Allocator) Self {
@@ -26,8 +29,7 @@ pub fn setContent(self: *Self, content: []const u8) !void {
     self.content.clearAndFree();
     try self.content.appendSlice(content);
 
-    self.elements.clearAndFree();
-    try parser.parse(self.content.items, &self.elements);
+    try self.parse();
 }
 
 /// Sets the content of the document from a file and parses it into elements.
@@ -41,8 +43,13 @@ pub fn setContentFromFile(
     self.content.clearAndFree();
     var file = try std.fs.cwd().openFile(rel_path, .{});
     try file.reader().readAllArrayList(&self.content, max_append_size);
+    try self.parse();
+}
+
+fn parse(self: *Self) !void {
     self.elements.clearAndFree();
     try parser.parse(self.content.items, &self.elements);
+    self.frontmatter = try parser.parseFrontmatter(self.content.allocator, self.content.items);
 }
 
 /// Deinitializes the document, freeing all resources.
