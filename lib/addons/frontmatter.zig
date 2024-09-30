@@ -3,9 +3,8 @@ const utils = @import("../utils.zig");
 const mem = std.mem;
 
 const Self = @This();
-const Element = @import("../elements.zig").Element;
 
-const FrontMatterParseError = error{
+pub const FrontMatterParseError = error{
     InvalidBegin,
     InvalidEnd,
     InvalidAttribute,
@@ -15,10 +14,11 @@ data: std.StringHashMap([]const u8),
 
 pub fn parse(
     allocator: mem.Allocator,
-    data: []const []const u8,
+    lines: []const u8,
 ) (FrontMatterParseError || mem.Allocator.Error)!Self {
     var frontmatter = std.StringHashMap([]const u8).init(allocator);
-    var iter = utils.SliceIterator([]const u8).init(data);
+    var iter = std.mem.splitScalar(u8, lines, '\n');
+
     if (iter.peek()) |line| {
         if (!mem.eql(u8, line, "---")) {
             return FrontMatterParseError.InvalidBegin;
@@ -44,13 +44,6 @@ pub fn parse(
     return FrontMatterParseError.InvalidEnd;
 }
 
-pub fn parseElement(
-    allocator: mem.Allocator,
-    data: []const []const u8,
-) (FrontMatterParseError || mem.Allocator.Error)!Element {
-    return .{ .frontmatter = try parse(allocator, data) };
-}
-
 pub fn deinit(self: *Self) void {
     self.data.deinit();
 }
@@ -63,9 +56,13 @@ const testing = std.testing;
 
 test "parse" {
     const allocator = std.heap.page_allocator;
-    const data = [_][]const u8{ "---", "title: Hello, world!", "---" };
+    const data =
+        \\---
+        \\title: Hello, world!
+        \\---
+    ;
 
-    var fm = try parse(allocator, &data);
+    var fm = try parse(allocator, data);
     const title = fm.get("title");
 
     try testing.expect(title != null);
@@ -74,18 +71,40 @@ test "parse" {
 
 test "parse invalid begin" {
     const allocator = std.heap.page_allocator;
-    const data = [_][]const u8{ "title: Hello, world!", "---" };
-    try testing.expectError(FrontMatterParseError.InvalidBegin, parse(allocator, &data));
+
+    const data =
+        \\title: Hello, world!
+        \\---
+    ;
+
+    try testing.expectError(
+        FrontMatterParseError.InvalidBegin,
+        parse(allocator, data),
+    );
 }
 
 test "parse invalid end" {
     const allocator = std.heap.page_allocator;
-    const data = [_][]const u8{ "---", "title: Hello, world!" };
-    try testing.expectError(FrontMatterParseError.InvalidEnd, parse(allocator, &data));
+    const data =
+        \\---
+        \\title: Hello, world!
+    ;
+
+    try testing.expectError(
+        FrontMatterParseError.InvalidEnd,
+        parse(allocator, data),
+    );
 }
 
 test "parse invalid attribute" {
     const allocator = std.heap.page_allocator;
-    const data = [_][]const u8{ "---", "title: Hello, world!", "invalid" };
-    try testing.expectError(FrontMatterParseError.InvalidAttribute, parse(allocator, &data));
+    const data =
+        \\---
+        \\title: Hello, world!
+        \\invalid
+    ;
+    try testing.expectError(
+        FrontMatterParseError.InvalidAttribute,
+        parse(allocator, data),
+    );
 }

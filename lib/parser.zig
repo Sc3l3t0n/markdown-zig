@@ -1,19 +1,17 @@
 const std = @import("std");
 const elements = @import("elements.zig");
+const utils = @import("utils.zig");
 
 const startsWith = std.mem.startsWith;
 
 const Element = @import("elements.zig").Element;
-
-const ParserError = error{
-    FrontmatterTooLong,
-};
+const Frontmatter = @import("addons.zig").Frontmatter;
 
 /// Parsed the content into Markdown elements.
 pub fn parse(content: []const u8, element_list: *std.ArrayList(Element)) !void {
     var lines = std.mem.tokenizeScalar(u8, content, '\n');
 
-    try parseFrontmatter(&lines, element_list);
+    skipFrontmatter(&lines);
 
     while (lines.next()) |line| {
         if (line.len == 0) {
@@ -41,57 +39,53 @@ pub fn parse(content: []const u8, element_list: *std.ArrayList(Element)) !void {
     }
 }
 
-fn parseFrontmatter(
-    lines: *std.mem.TokenIterator(u8, .scalar),
-    element_list: *std.ArrayList(Element),
-) !void {
+/// Skips the frontmatter if it exists
+fn skipFrontmatter(lines: *std.mem.TokenIterator(u8, .scalar)) void {
     if (lines.peek()) |start| {
-        if (!std.mem.eql(u8, start, "---")) return;
-
-        // TODO: Do not use a buffer here
-        var buf: [200][]const u8 = undefined;
-        var i: usize = 0;
-        buf[i] = lines.next().?;
-        i += 1;
+        if (!startsWith(u8, start, "---")) return;
         while (lines.next()) |line| {
-            if (i == buf.len) {
-                return ParserError.FrontmatterTooLong;
-            }
-            buf[i] = line;
-            i += 1;
-            if (!std.mem.eql(u8, line, "---")) continue;
-
-            try element_list.append(
-                try elements.Frontmatter.parseElement(
-                    element_list.allocator,
-                    buf[0..i],
-                ),
-            );
-            break;
+            if (startsWith(u8, line, "---")) break;
         }
     }
+}
+
+/// Parses the frontmatter of the content.
+pub fn parseFrontmatter(
+    allocator: std.mem.Allocator,
+    content: []const u8,
+) !?Frontmatter {
+    var lines = std.mem.splitScalar(u8, content, '\n');
+
+    if (lines.next()) |start| {
+        if (!std.mem.eql(u8, start, "---")) return Frontmatter.FrontMatterParseError.InvalidBegin;
+
+        while (lines.next()) |line| {
+            if (!std.mem.eql(u8, line, "---")) continue;
+
+            const len = content.len - lines.rest().len;
+            return try Frontmatter.parse(
+                allocator,
+                content[0..len],
+            );
+        }
+    }
+    return Frontmatter.FrontMatterParseError.InvalidEnd;
 }
 
 const testing = std.testing;
 
 test "frontmatter" {
     const allocator = std.heap.page_allocator;
-    var element_list = std.ArrayList(Element).init(allocator);
     const content =
         \\---
         \\title: Hello world!
         \\---
     ;
 
-    try parse(content, &element_list);
+    var fm = try parseFrontmatter(allocator, content);
+    defer fm.deinit();
 
-    const element = element_list.items[0];
-    switch (element) {
-        .frontmatter => {
-            const value = element.frontmatter.get("title");
-            try testing.expect(value != null);
-            try testing.expectEqualSlices(u8, "Hello world!", value.?);
-        },
-        else => unreachable,
-    }
+    const value = fm.get("title");
+    try testing.expect(value != null);
+    try testing.expectEqualSlices(u8, "Hello world!", value.?);
 }
