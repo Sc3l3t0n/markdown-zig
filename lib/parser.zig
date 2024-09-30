@@ -57,7 +57,7 @@ pub fn parseFrontmatter(
     var lines = std.mem.splitScalar(u8, content, '\n');
 
     if (lines.next()) |start| {
-        if (!std.mem.eql(u8, start, "---")) return Frontmatter.FrontMatterParseError.InvalidBegin;
+        if (!std.mem.eql(u8, start, "---")) return null;
 
         while (lines.next()) |line| {
             if (!std.mem.eql(u8, line, "---")) continue;
@@ -69,6 +69,7 @@ pub fn parseFrontmatter(
             );
         }
     }
+    // TODO: Should this be an error?
     return Frontmatter.FrontMatterParseError.InvalidEnd;
 }
 
@@ -83,9 +84,9 @@ test "frontmatter" {
     ;
 
     var fm = try parseFrontmatter(allocator, content);
-    defer fm.deinit();
+    defer fm.?.deinit();
 
-    const value = fm.get("title");
+    const value = fm.?.get("title");
     try testing.expect(value != null);
     try testing.expectEqualSlices(u8, "Hello world!", value.?);
 }
