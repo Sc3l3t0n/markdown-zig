@@ -43,6 +43,17 @@ pub fn parseElement(
     return .{ .heading = parse(line) };
 }
 
+/// Returns the content height of the element
+pub fn contentHeight(self: *Heading) usize {
+    _ = self;
+    return 1;
+}
+
+/// Returns the content width of the element
+pub fn contentWidth(self: *Heading) usize {
+    return self.text.len;
+}
+
 const testing = @import("std").testing;
 
 test "parsing" {

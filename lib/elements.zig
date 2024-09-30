@@ -23,9 +23,31 @@ pub const Element = union(enum) {
     pub fn deinit(self: *Element) void {
         switch (self.*) {
             .heading => {},
-            .list => self.list.deinit(),
+            .list => |*l| l.deinit(),
             .paragraph => {},
             .horizontal_rule => {},
+        }
+    }
+
+    /// Returns the content height of the element
+    pub fn contentHight(self: Element) usize {
+        switch (self) {
+            .heading => |h| h.contentHight(),
+            .list => |l| l.contentHight(),
+            .paragraph => |p| p.contentHight(),
+            .horizontal_rule => 1,
+        }
+    }
+
+    /// Returns the content width of the element
+    /// If multiple lines are present, returns the width of the longest line
+    /// Horizontal rules always return 1
+    pub fn contentWidth(self: Element) usize {
+        switch (self) {
+            .heading => |h| h.contentWidth(),
+            .list => |l| l.contentWidth(),
+            .paragraph => |p| p.contentWidth(),
+            .horizontal_rule => 1,
         }
     }
 };

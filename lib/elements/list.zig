@@ -107,6 +107,17 @@ pub fn deinit(self: *List) void {
     self.item_list.deinit();
 }
 
+/// Returns the content height of the element
+pub fn contentHeight(self: *List) usize {
+    _ = self;
+    return 1;
+}
+
+/// Returns the content width of the element
+pub fn contentWidth(self: *List) usize {
+    return self.item_list.items[0].text().len;
+}
+
 const testing = std.testing;
 
 test "parse" {
